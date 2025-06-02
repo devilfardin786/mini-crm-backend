@@ -16,7 +16,7 @@ const session = require("express-session");
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.FRONTEND_URL,
+  origin: process.env.FRONTEND_URL || "https://mini-crm-frontend-hazel.vercel.app",
   credentials: true
 }));
 app.use(morgan('combined'));
