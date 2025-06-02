@@ -31,7 +31,6 @@ router.post("/schedule", authenticate, async (req, res) => {
   }
 });
 
-
 // Send campaign messages
 router.post("/:campaignId/send", async (req, res) => {
   try {
@@ -63,25 +62,83 @@ router.post("/:campaignId/send", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
-// Fetch all campaigns with delivery stats
+// Fetch all campaigns (basic version)
 router.get("/", async (req, res) => {
   try {
     const campaigns = await Campaign.find();
     res.json(campaigns);
+  } catch (error) {
+    res.status(500).json({ error: "Error fetching campaigns" });
+  }
+});
+
+
+
+// Fetch all campaigns with full details
+router.get("/history", async (req, res) => {
+  try {
+    const campaigns = await Campaign.find().sort({ createdAt: -1 });
+
+    const campaignDetails = await Promise.all(
+      campaigns.map(async (campaign) => {
+        const sentCount = await CommunicationLog.countDocuments({ campaignId: campaign._id, status: "SENT" });
+        const failedCount = await CommunicationLog.countDocuments({ campaignId: campaign._id, status: "FAILED" });
+        const audienceSize = await Customer.countDocuments();
+
+        return {
+          _id: campaign._id,
+          name: campaign.name,
+          message: campaign.message,
+          createdAt: campaign.createdAt,
+          sent: sentCount || 0,   // ✅ Default to 0 if not set
+          failed: failedCount || 0,  // ✅ Default to 0 if not set
+          audienceSize: audienceSize || 0,  // ✅ Ensure segment size is included
+        };
+      })
+    );
+
+    res.json(campaignDetails);
   } catch (error) {
     console.error("Error fetching campaigns:", error);
     res.status(500).json({ message: "Error retrieving campaigns." });
   }
 });
 
+// Calculate audience size
+router.post("/audience-size", async (req, res) => {
+  const { rules, logic } = req.body;
 
-router.post("/", authenticate, async (req, res) => {
-  // Only authenticated users can create a campaign
-});
+  if (!rules || rules.length === 0) return res.json({ size: 0 });
 
-router.get("/", authenticate, async (req, res) => {
-  // Only authenticated users can view campaigns
+  const parsedRules = rules.map((rule) => {
+    const [field, operator, value] = rule.split(" ");
+
+    if (field === "spend") {
+      return operator === ">" ? { spend: { $gt: Number(value) } } : { spend: { $lt: Number(value) } };
+    }
+
+    if (field === "visits") {
+      return operator === ">" ? { visits: { $gt: Number(value) } } : { visits: { $lt: Number(value) } };
+    }
+
+    if (field === "inactive") {
+      const cutoff = new Date(Date.now() - Number(value) * 24 * 60 * 60 * 1000);
+      return { lastActive: { $lt: cutoff } };
+    }
+
+    return {};
+  });
+
+  const mongoOperator = logic === "AND" ? "$and" : "$or";
+  const query = { [mongoOperator]: parsedRules };
+
+  try {
+    const audienceSize = await Customer.countDocuments(query);
+    res.json({ size: audienceSize });
+  } catch (error) {
+    console.error("Error calculating audience size:", error);
+    res.status(500).json({ error: "Failed to calculate audience size" });
+  }
 });
 
 
