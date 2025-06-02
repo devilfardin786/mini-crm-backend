@@ -7,10 +7,10 @@ const morgan = require('morgan');
 require('dotenv').config();
 
 const app = express();
-const vendorAPI = require("./routes/vendorAPI");
-const receiptAPI = require("./routes/receiptAPI");
-const authRoutes = require("./routes/authRoutes");
-const passport = require("./config/passport");
+const vendorAPI = require("./src/routes/vendorAPI");
+const receiptAPI = require("./src/routes/receiptAPI");
+const authRoutes = require("./src/routes/authRoutes");
+const passport = require("./src/config/passport");
 const session = require("express-session");
 
 // Middleware
@@ -43,7 +43,7 @@ app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
 
-const campaignRoutes = require("./routes/campaignRoutes");
+const campaignRoutes = require("./src/routes/campaignRoutes");
 app.use("/api/campaigns", campaignRoutes);
 app.use("/api/vendor", vendorAPI);
 app.use("/api/receipt", receiptAPI);
